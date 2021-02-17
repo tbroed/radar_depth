@@ -1,3 +1,10 @@
+'''
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Undo the automatic Upload when working on Zuluk directly (of pycharm)
+Tools/Development/Automatic Upload (Always) --> turn of
+use manual "sync with Deployed" instead
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+'''
 import os
 import time
 import csv
