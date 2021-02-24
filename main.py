@@ -39,6 +39,18 @@ from evaluation.criteria_new import (
 from dataset.nuscenes_dataset_torch_new import nuscenes_dataset_torch
 import torch.utils.data.dataloader as torch_loader
 
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+def to_device(x):
+    if device == "gpu":
+        x = x.cuda()
+    else:
+        x = x.cpu()
+    return x
+
+
+
 args = utils.parse_command()
 
 fieldnames = ['mse', 'rmse', 'absrel', 'lg10', 'mae',
@@ -50,7 +62,7 @@ best_result.set_to_worst()
 
 multistage_group = ['resnet18_multistage', 'resnet18_multistage_uncertainty', 'resnet18_multistage_uncertainty_fixs']
 uncertainty_group = ['resnet18_multistage_uncertainty', 'resnet18_multistage_uncertainty_fixs']
-torch.cuda.empty_cache()
+torch.cuda.empty_cache() # TODO: rewrite to cpu
 torch.backends.cudnn.benchmark = True
 
 # Define the customized collate_fn
@@ -216,7 +228,7 @@ def main():
             model = create_model(args, output_size=train_loader.dataset.output_size)
             loss_weights = None
         model.load_state_dict(model_weights, strict=False)
-        model = model.cuda()
+        model = to_device(model)
         print(f"[Info] Loaded best model (epoch {checkpoint['epoch']})")
         args.evaluate = True
         validate(val_loader, model, checkpoint['epoch'], write_to_file=False)
@@ -258,7 +270,7 @@ def main():
             model = create_model(args, output_size=train_loader.dataset.output_size)
             loss_weights = None
         model.load_state_dict(model_weights, strict=False)
-        model = model.cuda()
+        model = to_device(model)
 
         # Create optimizer
         optimizer = torch.optim.SGD(
@@ -295,21 +307,21 @@ def main():
             momentum=args.momentum, 
             weight_decay=args.weight_decay
         )
-        model = model.cuda()
+        model = to_device(model)
 
     # Define loss function (criterion) and optimizer
     criterion = {}
     if args.criterion == 'l2':
-        criterion["depth"] = MaskedMSELoss().cuda()
+        criterion["depth"] = to_device(MaskedMSELoss())
     elif args.criterion == 'l1':
-        criterion["depth"] = MaskedL1Loss().cuda()
+        criterion["depth"] = to_device(MaskedL1Loss())
     else:
         raise ValueError("[Error] Unknown criterion...")
     
     # Add smoothness loss to the criterion
     if args.arch == "resnet18_multistage_uncertainty" or \
        args.arch == "resnet18_multistage_uncertainty_fixs":
-        criterion["smooth"] = SmoothnessLoss().cuda()
+        criterion["smooth"] = to_device(SmoothnessLoss())
 
     # Create results folder, if not already exists
     output_directory = utils.get_output_directory(args)
@@ -396,11 +408,11 @@ def train(train_loader, model, criterion, optimizer, epoch, loss_weights=None, l
         ############ Fetch input data ################
         # Add compatibility for nuscenes
         if args.data != "nuscenes":
-            inputs, target = data[0].cuda(), data[1].cuda()
+            inputs, target = to_device(data[0]), to_device(data[1])
         else:
-            inputs, target = data["inputs"].cuda(), data["labels"].cuda()
+            inputs, target = to_device(data["inputs"]), to_device(data["labels"])
         
-        torch.cuda.synchronize()
+        # torch.cuda.synchronize() TODO: re-introduce for bigger batch sizes
         data_time = time.time() - end
 
         # Training step
@@ -450,7 +462,7 @@ def train(train_loader, model, criterion, optimizer, epoch, loss_weights=None, l
         optimizer.zero_grad()
         loss.backward() # compute gradient and do SGD step
         optimizer.step()
-        torch.cuda.synchronize()
+        # torch.cuda.synchronize()  # TODO: re-introduce for bigger batch sizes
         gpu_time = time.time() - end
 
         # [Depth] Measure error and record loss
@@ -580,9 +592,9 @@ def validate(val_loader, model, epoch, write_to_file=True, logger=None):
     for i, data in enumerate(val_loader):
         # Add compatibility for nuscenes
         if args.data != "nuscenes":
-            inputs, target = data[0].cuda(), data[1].cuda()
+            inputs, target = to_device(data[0]), to_device(data[1])
         else:
-            inputs, target = data["inputs"].cuda(), data["labels"].cuda()
+            inputs, target = to_device(data["inputs"]), to_device(data["labels"])
             
         torch.cuda.synchronize()
         data_time = time.time() - end

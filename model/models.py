@@ -9,6 +9,13 @@ from torchvision.models.resnet import Bottleneck, conv1x1, conv3x3
 import collections
 import math
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+def to_device(x):
+    if device == "gpu":
+        x = x.cuda()
+    else:
+        x = x.cpu()
+    return x
 
 class Unpool(nn.Module):
     # Unpool: 2*2 unpooling with zero padding
@@ -20,7 +27,7 @@ class Unpool(nn.Module):
 
         # create kernel [1, 0; 0, 0]
 
-        self.weights = torch.autograd.Variable(torch.zeros(num_channels, 1, stride, stride).cuda()) # currently not compatible with running on CPU
+        self.weights = torch.autograd.Variable(to_device(torch.zeros(num_channels, 1, stride, stride))) # currently not compatible with running on CPU
         self.weights[:,:,0,0] = 1
 
     def forward(self, x):
